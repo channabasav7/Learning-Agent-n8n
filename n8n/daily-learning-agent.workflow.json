@@ -1,0 +1,162 @@
+{
+  "name": "Daily Learning Task Agent",
+  "nodes": [
+    {
+      "parameters": {
+        "triggerTimes": {
+          "item": [
+            {
+              "mode": "everyDay",
+              "hour": 7,
+              "minute": 0
+            }
+          ]
+        }
+      },
+      "id": "1",
+      "name": "Daily Trigger",
+      "type": "n8n-nodes-base.cron",
+      "typeVersion": 1,
+      "position": [
+        220,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const now = new Date();\nconst MS_PER_DAY = 86400000;\n\nconst normalizeCourseName = (name) => name.toLowerCase().trim().replace(/\\s+/g, '_');\n\nconst courseAliases = {\n  java: 'java_dsa',\n  dsa: 'java_dsa',\n  java_dsa: 'java_dsa',\n  dsa_java: 'java_dsa',\n  python: 'python',\n  flutter: 'flutter',\n  sql: 'sql'\n};\n\nconst courseTaskBank = {\n  java_dsa: {\n    foundation: [\n      'Java arrays and strings: solve 3 easy problems, then review complexity.',\n      'Implement stack and queue in Java with add, remove, peek methods.',\n      'Binary search basics: solve 3 variants and write edge-case notes.'\n    ],\n    intermediate: [\n      'Solve 3 medium linked-list problems (reverse, cycle, merge).',\n      'Sliding window practice: 2 medium problems and dry-run each.',\n      'Recursion + backtracking: solve subsets and permutation problems.'\n    ],\n    project: [\n      'Build a Java DSA tracker app (problem, topic, status, notes).',\n      'Create reusable Java templates for BFS, DFS, and binary search.',\n      'Take one 60-minute mixed DSA mock and analyze weak topics.'\n    ],\n    revision: [\n      'Revise all Java DSA notes and re-solve 2 previously failed problems.',\n      'Run a final timed set: 1 easy, 2 medium, 1 hard and review solutions.',\n      'Prepare interview-style explanation for 5 core patterns.'\n    ]\n  },\n  python: {\n    foundation: [\n      'Revise core syntax, list and dict comprehensions, and functions.',\n      'Practice file handling and exception handling with mini exercises.',\n      'Solve 3 beginner problems using loops, conditions, and functions.'\n    ],\n    intermediate: [\n      'Use collections (Counter, defaultdict, deque) in 3 coding tasks.',\n      'Practice OOP: class design, inheritance, and dataclass examples.',\n      'Write 2 utility scripts and add pytest tests for both.'\n    ],\n    project: [\n      'Build a CLI study planner in Python with CSV or JSON persistence.',\n      'Use requests to fetch API data and generate a clean summary report.',\n      'Refactor one previous script with modular functions and tests.'\n    ],\n    revision: [\n      'Revise Python notes and reattempt 3 mistakes from your log.',\n      'Do one 45-minute Python coding sprint and inspect complexity.',\n      'Prepare a one-page cheat sheet for modules, OOP, and testing.'\n    ]\n  },\n  flutter: {\n    foundation: [\n      'Build one responsive UI screen with Row, Column, Expanded, and ListView.',\n      'Create a validated form using TextFormField and GlobalKey.',\n      'Practice navigation with arguments across 2-3 screens.'\n    ],\n    intermediate: [\n      'Implement Provider or Riverpod basics for state management.',\n      'Consume a REST API and handle loading, success, and error states.',\n      'Create 2 reusable widgets and document their parameters.'\n    ],\n    project: [\n      'Build a mini study progress app with local storage.',\n      'Add filtering and progress tracking to the Flutter app UI.',\n      'Polish app UX: empty states, validation, and loading indicators.'\n    ],\n    revision: [\n      'Review Flutter layout and state concepts from project code.',\n      'Refactor one screen for readability and widget reuse.',\n      'Prepare a demo walkthrough of app structure and decisions.'\n    ]\n  },\n  sql: {\n    foundation: [\n      'Write 10 SELECT queries using WHERE, ORDER BY, and LIMIT.',\n      'Practice INNER and LEFT JOIN on sample tables with notes.',\n      'Solve aggregate basics with GROUP BY and HAVING.'\n    ],\n    intermediate: [\n      'Solve 5 subquery and CTE practice questions.',\n      'Practice window functions: ROW_NUMBER, RANK, SUM OVER.',\n      'Design a normalized schema for a learning tracker database.'\n    ],\n    project: [\n      'Create schema + seed data + 10 analysis queries for study progress.',\n      'Add indexes and compare query execution before and after.',\n      'Build an SQL report for weekly completion and weak topics.'\n    ],\n    revision: [\n      'Revise all SQL query patterns and retry 5 difficult questions.',\n      'Take one timed SQL challenge set and review mistakes.',\n      'Prepare a compact SQL revision sheet with common templates.'\n    ]\n  }\n};\n\nconst monthsInput = Number($env.PREFERRED_MONTHS || 3);\nconst preferredMonths = Number.isFinite(monthsInput) && monthsInput > 0 ? Math.min(Math.floor(monthsInput), 24) : 3;\n\nconst selectedCourseInput = ($env.SELECTED_COURSES || 'java dsa, python, flutter, sql')\n  .split(',')\n  .map((value) => value.trim())\n  .filter(Boolean);\n\nconst selectedCourses = [...new Set(\n  selectedCourseInput\n    .map((value) => courseAliases[normalizeCourseName(value)] || normalizeCourseName(value))\n    .filter((course) => courseTaskBank[course])\n)];\n\nif (selectedCourses.length === 0) {\n  selectedCourses.push('java_dsa', 'python', 'flutter', 'sql');\n}\n\nconst startDateInput = $env.STUDY_PLAN_START_DATE;\nconst parsedStart = startDateInput ? new Date(startDateInput) : now;\nconst startDate = Number.isNaN(parsedStart.getTime())\n  ? new Date(now.getFullYear(), now.getMonth(), now.getDate())\n  : new Date(parsedStart.getFullYear(), parsedStart.getMonth(), parsedStart.getDate());\n\nconst endDate = new Date(startDate);\nendDate.setMonth(endDate.getMonth() + preferredMonths);\n\nconst totalDays = Math.max(1, Math.ceil((endDate.getTime() - startDate.getTime()) / MS_PER_DAY));\nconst today = new Date(now.getFullYear(), now.getMonth(), now.getDate());\nlet dayNumber = Math.floor((today.getTime() - startDate.getTime()) / MS_PER_DAY) + 1;\n\nif (dayNumber < 1) dayNumber = 1;\nif (dayNumber > totalDays) dayNumber = totalDays;\n\nconst progress = (dayNumber - 1) / totalDays;\nlet phase = 'foundation';\nif (progress >= 0.9) {\n  phase = 'revision';\n} else if (progress >= 0.7) {\n  phase = 'project';\n} else if (progress >= 0.35) {\n  phase = 'intermediate';\n}\n\nconst phaseLabel = phase.charAt(0).toUpperCase() + phase.slice(1);\nconst dateLabel = now.toLocaleDateString('en-GB', {\n  weekday: 'long',\n  day: '2-digit',\n  month: 'short',\n  year: 'numeric'\n});\n\nconst formatCourseName = {\n  java_dsa: 'Java DSA',\n  python: 'Python',\n  flutter: 'Flutter',\n  sql: 'SQL'\n};\n\nconst taskLines = selectedCourses.map((course, index) => {\n  const list = courseTaskBank[course][phase];\n  const task = list[(dayNumber + index * 3) % list.length];\n  return `${index + 1}) ${formatCourseName[course]}: ${task}`;\n});\n\nconst planStart = startDate.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });\nconst planEnd = endDate.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });\nconst selectedLabel = selectedCourses.map((course) => formatCourseName[course]).join(', ');\n\nconst message = [\n  `Daily Learning Tasks (${dateLabel})`,\n  `${preferredMonths}-Month Course Plan: Day ${dayNumber}/${totalDays} | Phase: ${phaseLabel}`,\n  `Plan Window: ${planStart} -> ${planEnd}`,\n  `Selected Courses: ${selectedLabel}`,\n  '',\n  ...taskLines,\n  '',\n  'Target: 2-3 focused hours total.',\n  'Rule: Finish at least one task per selected course.'\n].join('\\n');\n\nreturn [\n  {\n    json: {\n      subject: `Learning Plan Day ${dayNumber} - ${dateLabel}`,\n      message,\n      preferredMonths,\n      selectedCourses,\n      dayNumber,\n      totalDays,\n      phase\n    }\n  }\n];"
+      },
+      "id": "2",
+      "name": "Generate Daily Tasks",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        480,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": false,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "leftValue": "={{$env.NOTIFICATION_CHANNEL || 'telegram'}}",
+              "rightValue": "telegram",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "3",
+      "name": "Use Telegram?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        760,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "chatId": "={{$env.TELEGRAM_CHAT_ID}}",
+        "text": "={{$json.message}}",
+        "additionalFields": {}
+      },
+      "id": "4",
+      "name": "Send Telegram Message",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        1040,
+        220
+      ],
+      "credentials": {
+        "telegramApi": {
+          "id": "REPLACE_WITH_YOUR_TELEGRAM_CREDENTIAL_ID",
+          "name": "Telegram account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "fromEmail": "={{$env.FROM_EMAIL}}",
+        "toEmail": "={{$env.TO_EMAIL}}",
+        "subject": "={{$json.subject}}",
+        "text": "={{$json.message}}"
+      },
+      "id": "5",
+      "name": "Send Email",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [
+        1040,
+        380
+      ],
+      "credentials": {
+        "smtp": {
+          "id": "REPLACE_WITH_YOUR_SMTP_CREDENTIAL_ID",
+          "name": "SMTP account"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Daily Trigger": {
+      "main": [
+        [
+          {
+            "node": "Generate Daily Tasks",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Daily Tasks": {
+      "main": [
+        [
+          {
+            "node": "Use Telegram?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Use Telegram?": {
+      "main": [
+        [
+          {
+            "node": "Send Telegram Message",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Send Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "pinData": {},
+  "meta": {
+    "templateCredsSetupCompleted": false
+  }
+}
