@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Learning Command Center</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div class="bg-orb orb-a"></div>
+    <div class="bg-orb orb-b"></div>
+
+    <main class="shell">
+      <header class="hero">
+        <p class="tag">n8n powered</p>
+        <h1>Learning Command Center</h1>
+        <p>
+          Plan your 3-month journey, see today's focus tasks, and log live progress
+          from one place.
+        </p>
+      </header>
+
+      <section class="panel config-panel">
+        <h2>Setup</h2>
+        <div class="grid two">
+          <label>
+            n8n Base URL
+            <input
+              id="baseUrl"
+              type="url"
+              placeholder="https://your-n8n-host"
+            />
+          </label>
+          <label>
+            Preferred Months
+            <input id="months" type="number" min="1" max="24" value="3" />
+          </label>
+        </div>
+
+        <div class="course-select" id="courseSelect"></div>
+
+        <div class="actions-row">
+          <button id="saveConfig" class="btn solid">Save Settings</button>
+          <button id="generatePlan" class="btn ghost">Generate Plan</button>
+        </div>
+        <p id="configNotice" class="notice"></p>
+      </section>
+
+      <section class="grid cards">
+        <article class="panel stat-card">
+          <h3>Plan Progress</h3>
+          <p class="big" id="planDay">Day -/-</p>
+          <p id="planPhase">Phase: -</p>
+          <p id="planWindow">Window: -</p>
+        </article>
+        <article class="panel stat-card">
+          <h3>Live Completion</h3>
+          <p class="big" id="completion">0%</p>
+          <p id="focusMinutes">Focus Minutes: 0</p>
+          <p id="updatedAt">Updated: -</p>
+        </article>
+      </section>
+
+      <section class="panel">
+        <h2>Today's Tasks</h2>
+        <ul id="todayTasks" class="task-list"></ul>
+      </section>
+
+      <section class="panel">
+        <h2>7-Day Preview</h2>
+        <div id="previewDays" class="preview-days"></div>
+      </section>
+
+      <section class="panel tracker-panel">
+        <h2>Log Live Progress</h2>
+        <form id="progressForm" class="grid three">
+          <label>
+            Course
+            <select id="logCourse"></select>
+          </label>
+          <label>
+            Status
+            <select id="logStatus">
+              <option value="done">done</option>
+              <option value="in_progress">in_progress</option>
+              <option value="skip">skip</option>
+            </select>
+          </label>
+          <label>
+            Minutes
+            <input id="logMinutes" type="number" min="0" step="5" value="30" />
+          </label>
+          <label class="span-3">
+            Note
+            <input id="logNote" type="text" placeholder="What did you finish?" />
+          </label>
+          <div class="actions-row span-3">
+            <button class="btn solid" type="submit">Send Update</button>
+          </div>
+        </form>
+
+        <pre id="trackerResponse" class="response-box">No live updates yet.</pre>
+      </section>
+    </main>
+
+    <script src="app.js"></script>
+  </body>
+</html>
