@@ -1,6 +1,6 @@
-# Daily Learning Task Agent (n8n)
+# Daily Learning Task Agent (Single n8n Workflow)
 
-This setup gives you a ready n8n workflow that sends daily learning tasks for:
+This setup gives you a single n8n workflow that powers your website-only learning system (no Telegram or Email dependency) for:
 - Java DSA
 - Python
 - Flutter
@@ -8,9 +8,10 @@ This setup gives you a ready n8n workflow that sends daily learning tasks for:
 
 It now also builds a roadmap for a full 3-month plan (or any preferred number of months) to complete your selected courses.
 
+The daily plan workflow uses an AI agent in n8n to generate dynamic tasks per selected course. If AI credentials are missing or the model call fails, it automatically falls back to deterministic tasks.
+
 ## Files
-- `n8n/daily-learning-agent.workflow.json` - Import this into n8n
-- `n8n/live-learning-tracker.workflow.json` - Real-time progress tracker webhook
+- `n8n/learning-agent-unified.workflow.json` - Single workflow with both APIs
 - `n8n/.env.example` - Environment variable template
 - `frontend/index.html` - Dashboard UI
 - `frontend/styles.css` - UI styling
@@ -18,27 +19,38 @@ It now also builds a roadmap for a full 3-month plan (or any preferred number of
 
 ## How to use
 1. Open n8n.
-2. Import `n8n/daily-learning-agent.workflow.json`.
-3. Create credentials in n8n:
-   - Telegram credentials for `Send Telegram Message` node, OR
-   - SMTP credentials for `Send Email` node.
-4. Set environment variables in your n8n environment using `n8n/.env.example`.
-5. In workflow settings, keep `NOTIFICATION_CHANNEL` as:
-   - `telegram` to use Telegram, or
-   - `email` to use email.
-6. Set roadmap env variables:
+2. Import `n8n/learning-agent-unified.workflow.json`.
+3. Set environment variables in your n8n environment using `n8n/.env.example`.
+4. Set roadmap env variables:
    - `PREFERRED_MONTHS=3` (or any preferred value)
    - `SELECTED_COURSES=java dsa,python,flutter,sql` (choose what you want)
    - Optional: `STUDY_PLAN_START_DATE=2026-04-05`
-7. Test run the workflow.
-8. Activate the workflow.
+5. Set AI variables:
+   - `OPENAI_API_KEY=...`
+   - Optional: `OPENAI_MODEL=gpt-4o-mini`
+   - Optional: `OPENAI_BASE_URL=https://api.openai.com/v1`
+6. Activate the workflow.
+7. Use the daily plan webhook from your website.
 
-## Schedule
-By default, this workflow runs every day at 07:00 local server time.
+## Daily Plan API
+- Method: `POST`
+- Path: `/webhook/daily-learning-plan`
 
-To change schedule:
-- Open `Daily Trigger` node
-- Update hour/minute
+Example body:
+```json
+{
+  "preferredMonths": 3,
+  "selectedCourses": ["java dsa", "python", "flutter", "sql"],
+  "studyPlanStartDate": "2026-04-05"
+}
+```
+
+This returns today's structured tasks plus a 7-day preview for the frontend.
+
+AI-related response fields:
+- `aiEnabled` - `true` when AI generated tasks were used
+- `aiProvider` - currently `openai`
+- `aiCoachTip` - optional daily coaching tip
 
 ## Customize tasks
 Open `Generate Daily Tasks` node and edit the arrays:
@@ -56,12 +68,11 @@ Each course has phase-based tasks:
 The workflow maps each day in your plan window to a phase and sends daily actionable tasks from that phase.
 
 ## Live Learning Tracker
-Use the live tracker workflow to record progress throughout the day and get instant completion stats.
+Use the live tracker endpoint in the same workflow to record progress throughout the day and get instant completion stats.
 
 ### Setup
-1. Import `n8n/live-learning-tracker.workflow.json`.
-2. Activate the workflow.
-3. Copy the Production webhook URL from `Track Progress Webhook` node.
+1. Activate the same unified workflow.
+2. Copy the Production webhook URL from `Track Progress Webhook` node.
 
 ### Webhook endpoint
 - Method: `POST`

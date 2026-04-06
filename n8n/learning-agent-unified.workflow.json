@@ -1,0 +1,99 @@
+{
+  "name": "Learning Agent Unified (AI Plan + Live Tracker)",
+  "nodes": [
+    {
+      "parameters": {
+        "path": "daily-learning-plan",
+        "httpMethod": "POST",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "1",
+      "name": "Get Plan Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [220, 220],
+      "webhookId": "daily-learning-plan"
+    },
+    {
+      "parameters": {
+        "jsCode": "async function main() {\n  const now = new Date();\n  const MS_PER_DAY = 86400000;\n  const input = $json.body || $json || {};\n\n  const aliases = { java: 'java_dsa', dsa: 'java_dsa', java_dsa: 'java_dsa', dsa_java: 'java_dsa', python: 'python', flutter: 'flutter', sql: 'sql' };\n  const labels = { java_dsa: 'Java DSA', python: 'Python', flutter: 'Flutter', sql: 'SQL' };\n  const normalize = (v) => String(v || '').toLowerCase().trim().replace(/\\s+/g, '_');\n\n  const bank = {\n    java_dsa: {\n      foundation: ['Solve 3 easy array/string problems in Java.', 'Implement stack and queue with tests.', 'Practice binary search variants.'],\n      intermediate: ['Solve 3 linked-list medium problems.', 'Practice 2 sliding-window questions.', 'Do recursion + backtracking set.'],\n      project: ['Build a Java DSA tracker app.', 'Create BFS/DFS/template notes.', 'Take a 60-minute mock set.'],\n      revision: ['Revise weak topics and retry failed questions.', 'Timed set: 1 easy, 2 medium, 1 hard.', 'Explain 5 DSA patterns aloud.']\n    },\n    python: {\n      foundation: ['Revise core syntax and comprehensions.', 'Practice file + exception handling.', 'Solve 3 beginner Python problems.'],\n      intermediate: ['Use collections in 3 coding tasks.', 'Practice OOP with dataclass.', 'Write 2 scripts and pytest tests.'],\n      project: ['Build CLI study planner.', 'Use API data and summarize it.', 'Refactor script into modules.'],\n      revision: ['Retry 3 mistakes from log.', 'Run a 45-minute coding sprint.', 'Create one-page Python cheat sheet.']\n    },\n    flutter: {\n      foundation: ['Build responsive screen with core widgets.', 'Create validated form.', 'Practice multi-screen navigation.'],\n      intermediate: ['Implement basic state management.', 'Consume REST API with states.', 'Build 2 reusable widgets.'],\n      project: ['Build study progress app.', 'Add filter/progress UI.', 'Polish UX states and validation.'],\n      revision: ['Review layout + state concepts.', 'Refactor one screen for reuse.', 'Prepare app demo walkthrough.']\n    },\n    sql: {\n      foundation: ['Write 10 SELECT query drills.', 'Practice JOIN basics.', 'Solve GROUP BY and HAVING set.'],\n      intermediate: ['Solve subquery + CTE set.', 'Practice window functions.', 'Design normalized schema.'],\n      project: ['Create schema + seed + analysis queries.', 'Add indexes and compare speed.', 'Build weekly progress SQL report.'],\n      revision: ['Retry difficult SQL questions.', 'Take timed SQL challenge.', 'Prepare compact SQL template notes.']\n    }\n  };\n\n  const preferredMonths = Math.min(Math.max(Math.floor(Number(input.preferredMonths || $env.PREFERRED_MONTHS || 3)), 1), 24);\n  const selectedRaw = Array.isArray(input.selectedCourses) ? input.selectedCourses.join(',') : (input.selectedCourses || $env.SELECTED_COURSES || 'java dsa,python,flutter,sql');\n  const selected = [...new Set(String(selectedRaw).split(',').map((v) => aliases[normalize(v)] || normalize(v)).filter((c) => bank[c]))];\n  const courses = selected.length ? selected : ['java_dsa', 'python', 'flutter', 'sql'];\n\n  const startInput = input.studyPlanStartDate || $env.STUDY_PLAN_START_DATE;\n  const parsedStart = startInput ? new Date(startInput) : now;\n  const start = Number.isNaN(parsedStart.getTime()) ? new Date(now.getFullYear(), now.getMonth(), now.getDate()) : new Date(parsedStart.getFullYear(), parsedStart.getMonth(), parsedStart.getDate());\n  const end = new Date(start);\n  end.setMonth(end.getMonth() + preferredMonths);\n\n  const totalDays = Math.max(1, Math.ceil((end.getTime() - start.getTime()) / MS_PER_DAY));\n  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());\n  let dayNumber = Math.floor((today.getTime() - start.getTime()) / MS_PER_DAY) + 1;\n  if (dayNumber < 1) dayNumber = 1;\n  if (dayNumber > totalDays) dayNumber = totalDays;\n\n  const phaseForDay = (d) => {\n    const progress = (d - 1) / totalDays;\n    if (progress >= 0.9) return 'revision';\n    if (progress >= 0.7) return 'project';\n    if (progress >= 0.35) return 'intermediate';\n    return 'foundation';\n  };\n\n  const phase = phaseForDay(dayNumber);\n  const phaseLabel = phase.charAt(0).toUpperCase() + phase.slice(1);\n\n  const fallbackTasks = courses.map((course, idx) => {\n    const list = bank[course][phase];\n    return { course, courseLabel: labels[course], task: list[(dayNumber + idx * 3) % list.length] };\n  });\n\n  let tasks = fallbackTasks;\n  let aiEnabled = false;\n  let aiProvider = '';\n  let aiCoachTip = '';\n\n  const apiKey = $env.OPENAI_API_KEY || '';\n  const model = $env.OPENAI_MODEL || 'gpt-4o-mini';\n  const base = ($env.OPENAI_BASE_URL || 'https://api.openai.com/v1').replace(/\\/$/, '');\n\n  if (apiKey) {\n    try {\n      const prompt = [\n        'You are a study planning agent.',\n        `Courses: ${courses.map((c) => labels[c]).join(', ')}`,\n        `Phase: ${phaseLabel}`,\n        `Plan day: ${dayNumber}/${totalDays}`,\n        'Return valid JSON only with keys tasks and coachTip.'\n      ].join('\\n');\n\n      const res = await fetch(`${base}/chat/completions`, {\n        method: 'POST',\n        headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },\n        body: JSON.stringify({\n          model,\n          temperature: 0.5,\n          response_format: { type: 'json_object' },\n          messages: [\n            { role: 'system', content: 'Return concise valid JSON.' },\n            { role: 'user', content: prompt }\n          ]\n        })\n      });\n\n      if (res.ok) {\n        const raw = await res.json();\n        const content = raw?.choices?.[0]?.message?.content || '{}';\n        const parsed = JSON.parse(content);\n        const aiTasks = Array.isArray(parsed.tasks) ? parsed.tasks : [];\n\n        if (aiTasks.length) {\n          const byCourse = {};\n          aiTasks.forEach((item) => {\n            const c = aliases[normalize(item.course)] || normalize(item.course);\n            const t = String(item.task || '').trim();\n            if (courses.includes(c) && t && !byCourse[c]) byCourse[c] = t;\n          });\n\n          tasks = courses.map((course) => ({\n            course,\n            courseLabel: labels[course],\n            task: byCourse[course] || fallbackTasks.find((x) => x.course === course).task\n          }));\n\n          aiEnabled = true;\n          aiProvider = 'openai';\n          aiCoachTip = String(parsed.coachTip || '').trim();\n        }\n      }\n    } catch (e) {\n      aiEnabled = false;\n    }\n  }\n\n  const previewDays = [];\n  for (let i = 0; i < 7; i += 1) {\n    const d = new Date(today);\n    d.setDate(d.getDate() + i);\n    let n = Math.floor((d.getTime() - start.getTime()) / MS_PER_DAY) + 1;\n    if (n < 1) n = 1;\n    if (n > totalDays) n = totalDays;\n    const p = phaseForDay(n);\n    const c = courses[0];\n    const l = bank[c][p];\n    previewDays.push({\n      date: d.toISOString().slice(0, 10),\n      dateLabel: d.toLocaleDateString('en-GB', { weekday: 'short', day: '2-digit', month: 'short' }),\n      phase: p,\n      course: c,\n      courseLabel: labels[c],\n      task: l[n % l.length]\n    });\n  }\n\n  const dateLabel = now.toLocaleDateString('en-GB', { weekday: 'long', day: '2-digit', month: 'short', year: 'numeric' });\n  const planStart = start.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });\n  const planEnd = end.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });\n\n  const taskLines = tasks.map((t, i) => `${i + 1}) ${t.courseLabel}: ${t.task}`);\n  const message = [\n    `Daily Learning Tasks (${dateLabel})`,\n    `${preferredMonths}-Month Course Plan: Day ${dayNumber}/${totalDays} | Phase: ${phaseLabel}`,\n    `Plan Window: ${planStart} -> ${planEnd}`,\n    `Selected Courses: ${courses.map((c) => labels[c]).join(', ')}`,\n    '',\n    ...taskLines,\n    aiCoachTip ? `Coach Tip: ${aiCoachTip}` : '',\n    '',\n    'Target: 2-3 focused hours total.',\n    'Rule: Finish at least one task per selected course.'\n  ].filter(Boolean).join('\\n');\n\n  return [{\n    json: {\n      ok: true,\n      subject: `Learning Plan Day ${dayNumber} - ${dateLabel}`,\n      message,\n      preferredMonths,\n      selectedCourses: courses,\n      dayNumber,\n      totalDays,\n      phase,\n      planStart,\n      planEnd,\n      tasks,\n      previewDays,\n      aiEnabled,\n      aiProvider,\n      aiCoachTip\n    }\n  }];\n}\n\nreturn await main();"
+      },
+      "id": "2",
+      "name": "AI Agent Planner",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [500, 220]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{$json}}",
+        "options": {}
+      },
+      "id": "3",
+      "name": "Return Daily Plan",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [790, 220]
+    },
+    {
+      "parameters": {
+        "path": "learning-progress",
+        "httpMethod": "POST",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "4",
+      "name": "Track Progress Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [220, 480],
+      "webhookId": "live-learning-progress"
+    },
+    {
+      "parameters": {
+        "jsCode": "const payload = $json.body || $json;\n\nconst normalize = (value) => String(value || '').toLowerCase().trim().replace(/\\s+/g, '_');\nconst alias = {\n  java: 'java_dsa',\n  dsa: 'java_dsa',\n  java_dsa: 'java_dsa',\n  dsa_java: 'java_dsa',\n  python: 'python',\n  flutter: 'flutter',\n  sql: 'sql'\n};\n\nconst courseInput = normalize(payload.course);\nconst course = alias[courseInput] || courseInput;\nconst validCourses = ['java_dsa', 'python', 'flutter', 'sql'];\n\nif (!course || !validCourses.includes(course)) {\n  return [{\n    json: {\n      ok: false,\n      error: 'Invalid course. Use one of: java dsa, python, flutter, sql.'\n    }\n  }];\n}\n\nconst status = normalize(payload.status || 'done');\nif (!['done', 'in_progress', 'skip'].includes(status)) {\n  return [{\n    json: {\n      ok: false,\n      error: 'Invalid status. Use: done, in_progress, or skip.'\n    }\n  }];\n}\n\nconst minutes = Number(payload.minutes || 0);\nconst note = String(payload.note || '').trim();\nconst now = new Date();\nconst dateKey = now.toISOString().slice(0, 10);\nconst timeKey = now.toISOString();\n\nconst staticData = getWorkflowStaticData('global');\nif (!staticData.days) staticData.days = {};\nif (!staticData.days[dateKey]) {\n  staticData.days[dateKey] = {\n    courses: {},\n    totalMinutes: 0,\n    events: []\n  };\n}\n\nconst day = staticData.days[dateKey];\nif (!day.courses[course]) {\n  day.courses[course] = { done: 0, in_progress: 0, skip: 0, minutes: 0 };\n}\n\nday.courses[course][status] += 1;\nday.courses[course].minutes += Number.isFinite(minutes) && minutes > 0 ? minutes : 0;\nday.totalMinutes += Number.isFinite(minutes) && minutes > 0 ? minutes : 0;\n\nday.events.push({\n  at: timeKey,\n  course,\n  status,\n  minutes: Number.isFinite(minutes) && minutes > 0 ? minutes : 0,\n  note\n});\n\nconst selectedCourses = ($env.SELECTED_COURSES || 'java dsa,python,flutter,sql')\n  .split(',')\n  .map((value) => normalize(value))\n  .map((value) => alias[value] || value)\n  .filter((value) => validCourses.includes(value));\n\nconst uniqueSelected = [...new Set(selectedCourses.length ? selectedCourses : validCourses)];\nconst doneCourses = uniqueSelected.filter((key) => (day.courses[key]?.done || 0) > 0);\nconst completionPercent = Math.round((doneCourses.length / uniqueSelected.length) * 100);\n\nconst labels = { java_dsa: 'Java DSA', python: 'Python', flutter: 'Flutter', sql: 'SQL' };\nconst progressLines = uniqueSelected.map((key, idx) => {\n  const stats = day.courses[key] || { done: 0, in_progress: 0, skip: 0, minutes: 0 };\n  return `${idx + 1}) ${labels[key]} -> done:${stats.done}, in_progress:${stats.in_progress}, skip:${stats.skip}, minutes:${stats.minutes}`;\n});\n\nconst message = [\n  `Live Tracker Update (${dateKey})`,\n  `Completion: ${completionPercent}% (${doneCourses.length}/${uniqueSelected.length} courses touched)`,\n  `Total Focus Minutes: ${day.totalMinutes}`,\n  '',\n  ...progressLines\n].join('\\n');\n\nreturn [{\n  json: {\n    ok: true,\n    date: dateKey,\n    updatedCourse: course,\n    status,\n    minutes: Number.isFinite(minutes) && minutes > 0 ? minutes : 0,\n    note,\n    completionPercent,\n    message\n  }\n}];"
+      },
+      "id": "5",
+      "name": "Update Tracker State",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [520, 480]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{$json}}",
+        "options": {}
+      },
+      "id": "6",
+      "name": "Return Tracker Snapshot",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [800, 480]
+    }
+  ],
+  "connections": {
+    "Get Plan Webhook": {
+      "main": [[{"node": "AI Agent Planner", "type": "main", "index": 0}]]
+    },
+    "AI Agent Planner": {
+      "main": [[{"node": "Return Daily Plan", "type": "main", "index": 0}]]
+    },
+    "Track Progress Webhook": {
+      "main": [[{"node": "Update Tracker State", "type": "main", "index": 0}]]
+    },
+    "Update Tracker State": {
+      "main": [[{"node": "Return Tracker Snapshot", "type": "main", "index": 0}]]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "pinData": {},
+  "meta": {
+    "templateCredsSetupCompleted": true
+  }
+}

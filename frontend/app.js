@@ -234,32 +234,64 @@ function renderCourseOptions() {
   });
 }
 
-function renderPlan() {
-  const today = createPlanForDate(new Date());
-  refs.planDay.textContent = `Day ${today.dayNumber}/${today.totalDays}`;
-  refs.planPhase.textContent = `Phase: ${today.phase}`;
-  refs.planWindow.textContent = `Window: ${formatDate(today.startDate)} to ${formatDate(today.endDate)}`;
+function renderPlanFromApi(planData) {
+  refs.planDay.textContent = `Day ${planData.dayNumber}/${planData.totalDays}`;
+  refs.planPhase.textContent = `Phase: ${planData.phase}`;
+  refs.planWindow.textContent = `Window: ${planData.planStart} to ${planData.planEnd}`;
 
   refs.todayTasks.innerHTML = "";
-  today.tasks.forEach((task) => {
+  (planData.tasks || []).forEach((task) => {
     const li = document.createElement("li");
-    li.textContent = `${COURSE_LABELS[task.course]}: ${task.text}`;
+    li.textContent = `${task.courseLabel}: ${task.task}`;
     refs.todayTasks.appendChild(li);
   });
 
   refs.previewDays.innerHTML = "";
-  for (let i = 0; i < 7; i += 1) {
-    const date = new Date();
-    date.setDate(date.getDate() + i);
-    const dayPlan = createPlanForDate(date);
+  (planData.previewDays || []).forEach((day) => {
     const card = document.createElement("article");
     card.className = "preview-card";
     card.innerHTML = `
-      <h4>${date.toLocaleDateString("en-GB", { weekday: "short", day: "2-digit", month: "short" })}</h4>
-      <p>Phase: ${dayPlan.phase}</p>
-      <p>${COURSE_LABELS[dayPlan.tasks[0].course]}: ${dayPlan.tasks[0].text}</p>
+      <h4>${day.dateLabel}</h4>
+      <p>Phase: ${day.phase}</p>
+      <p>${day.courseLabel}: ${day.task}</p>
     `;
     refs.previewDays.appendChild(card);
+  });
+}
+
+async function fetchPlanFromN8n() {
+  if (!state.baseUrl) {
+    refs.configNotice.textContent = "Set n8n Base URL first.";
+    return;
+  }
+
+  const endpoint = `${state.baseUrl}/webhook/daily-learning-plan`;
+  const payload = {
+    preferredMonths: state.months,
+    selectedCourses: state.selectedCourses,
+    studyPlanStartDate: state.planStartDate.toISOString().slice(0, 10),
+  };
+
+  refs.configNotice.textContent = "Fetching plan from n8n...";
+
+  try {
+    const response = await fetch(endpoint, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(payload),
+    });
+
+    const data = await response.json();
+    if (!response.ok || !data.ok) {
+      throw new Error(data.error || `HTTP ${response.status}`);
+    }
+
+    renderPlanFromApi(data);
+    refs.configNotice.textContent = "Plan synced from n8n.";
+  } catch (error) {
+    refs.configNotice.textContent = `Plan request failed: ${error.message}`;
   }
 }
 
@@ -276,7 +308,7 @@ function saveSettings() {
 
   localStorage.setItem("learningCommandCenter", JSON.stringify(persisted));
   refs.configNotice.textContent = "Settings saved.";
-  renderPlan();
+  fetchPlanFromN8n();
 }
 
 function loadSettings() {
@@ -350,10 +382,10 @@ function init() {
 
   renderCourseChips();
   renderCourseOptions();
-  renderPlan();
+  fetchPlanFromN8n();
 
   refs.saveConfig.addEventListener("click", saveSettings);
-  refs.generatePlan.addEventListener("click", renderPlan);
+  refs.generatePlan.addEventListener("click", fetchPlanFromN8n);
   refs.progressForm.addEventListener("submit", postProgress);
 }
 
